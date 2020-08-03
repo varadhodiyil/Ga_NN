@@ -46,6 +46,7 @@ class Genetic():
                         e['min'], e['max'])
         self.population = np.asarray(self.tuneable_params)
         self.population = np.concatenate(self.population, axis=1)
+        print(self.population)
         return self.population
 
     def set_score_fn(self, score_fn):
@@ -66,9 +67,10 @@ class Genetic():
             model = self.model_fn(self.population[i])
             
             # model.fit([X_train_tokens,Y_train_tokens[:,:-1]], Y_train_tokens.reshape(Y_train_tokens.shape[0],Y_train_tokens.shape[1], 1)[:,1:] ,epochs=200,batch_size=64, validation_split=0.2)
-            model.fit([self.X_train,self.Y_train[:,:-1]], \
-                            self.Y_train.reshape(self.Y_train.shape[0],self.Y_train.shape[1], 1)[:,1:] , 
-                            epochs=5,batch_size=64, validation_split=0.2)
+            # model.fit([self.X_train,self.Y_train[:,:-1]], \
+            #                 self.Y_train.reshape(self.Y_train.shape[0],self.Y_train.shape[1], 1)[:,1:] , 
+            #                 epochs=5,batch_size=64, validation_split=0.2)
+            model.fit(self.X_train , self.Y_train , validation_split=0.2 , epochs=10)
             if not self.eval_fn:
                 preds = model.predict(self.X_test)
                 preds = preds > 0.5
@@ -156,11 +158,12 @@ class Genetic():
         fitnessHistory = np.empty([n_generation + 1, n_parents])
 
         populationHistory = np.empty(
-            [(n_generation+1)*n_parents, n_params])
+            [(n_generation+1)*n_parents , n_params])
+        print("History Shape",populationHistory.shape)
 
         populationHistory[0:n_parents, :] = population
 
-        for generation in range(n_parents):
+        for generation in range(n_generation):
             self.curr_gen = generation
             print("This is number %s generation" % (generation))
 
@@ -187,8 +190,12 @@ class Genetic():
 
             population[0:parents.shape[0], :] = parents  # fittest parents
             population[parents.shape[0]:, :] = children_mutated  # children
-
-            populationHistory[(generation+1)*n_parents: (generation+1)*n_parents + n_parents, :] = population
+            print(population)
+            print(populationHistory)
+            print((generation+1)*n_parents , (generation+1)*n_parents + n_parents)
+            
+            populationHistory[(generation+1)*n_parents : (generation+1)*n_parents+ n_parents , :] = population 
+            
             tf.keras.backend.clear_session()
 
 
