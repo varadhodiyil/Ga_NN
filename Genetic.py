@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 import random
 from datetime import datetime
@@ -16,6 +14,7 @@ np.random.seed(42)
 logdir = "logs/scalars/" + datetime.now().strftime("%Y%m%d-%H%M%S")
 tensorboard_callback = keras.callbacks.TensorBoard(log_dir=logdir)
 writer = tf.summary.create_file_writer(logdir)
+
 
 
 class Genetic():
@@ -46,7 +45,6 @@ class Genetic():
                         e['min'], e['max'])
         self.population = np.asarray(self.tuneable_params)
         self.population = np.concatenate(self.population, axis=1)
-        print(self.population)
         return self.population
 
     def set_score_fn(self, score_fn):
@@ -62,15 +60,16 @@ class Genetic():
     
     def train__population(self):
         fScore = []
+        tf.keras.backend.clear_session()
+
         for i in range(self.population.shape[0]):
-            print('param', self.population[i][0])
-            model = self.model_fn(self.population[i])
+            print('param', self.population[i][0], 'Iter', i)
+            model , _ ,_ = self.model_fn(self.population[i])
             
             # model.fit([X_train_tokens,Y_train_tokens[:,:-1]], Y_train_tokens.reshape(Y_train_tokens.shape[0],Y_train_tokens.shape[1], 1)[:,1:] ,epochs=200,batch_size=64, validation_split=0.2)
-            # model.fit([self.X_train,self.Y_train[:,:-1]], \
-            #                 self.Y_train.reshape(self.Y_train.shape[0],self.Y_train.shape[1], 1)[:,1:] , 
-            #                 epochs=5,batch_size=64, validation_split=0.2)
-            model.fit(self.X_train , self.Y_train , validation_split=0.2 , epochs=10)
+            model.fit([self.X_train,self.Y_train[:,:-1]], \
+                            self.Y_train.reshape(self.Y_train.shape[0],self.Y_train.shape[1], 1)[:,1:] , 
+                            epochs=10,batch_size=64, validation_split=0.2)
             if not self.eval_fn:
                 preds = model.predict(self.X_test)
                 preds = preds > 0.5
@@ -158,8 +157,7 @@ class Genetic():
         fitnessHistory = np.empty([n_generation + 1, n_parents])
 
         populationHistory = np.empty(
-            [(n_generation+1)*n_parents , n_params])
-        print("History Shape",populationHistory.shape)
+            [(n_generation+1)*n_parents, n_params])
 
         populationHistory[0:n_parents, :] = population
 
@@ -172,7 +170,7 @@ class Genetic():
             fitnessHistory[generation, :] = fitnessValue
 
             # best score in the current iteration
-            print('Best max in the this iteration = {}'.format(
+            print('Max in this iteration = {}'.format(
                 np.max(fitnessHistory[generation, :])))
             
             with writer.as_default():
@@ -190,78 +188,22 @@ class Genetic():
 
             population[0:parents.shape[0], :] = parents  # fittest parents
             population[parents.shape[0]:, :] = children_mutated  # children
-            print(population)
-            print(populationHistory)
-            print((generation+1)*n_parents , (generation+1)*n_parents + n_parents)
-            
-            populationHistory[(generation+1)*n_parents : (generation+1)*n_parents+ n_parents , :] = population 
-            
+
+            populationHistory[(generation+1)*n_parents: (generation+1)*n_parents + n_parents, :] = population
             tf.keras.backend.clear_session()
 
-
+        self.populationHistory = populationHistory
+        
         self.set_population(population)
         fitness = self.train__population()
         fitnessHistory[generation+1, :] = fitness
+        self.fitnessHistory = fitnessHistory
 
         # index of the best solution
         best = np.where(fitness == np.max(fitness))[0][0]
 
         # Best fitness
         print("Best fitness is =", population[best])
-        self.plot_parameters(n_generation, n_parents, fitnessHistory, "fitness (F1-score)")
+        # self.plot_parameters(n_generation, n_parents, fitnessHistory, "fitness (F1-score)")
         return population[best]
-
-
-    def plot_parameters(self , numberOfGenerations, numberOfParents, parameter, parameterName):
-        #inspired from https://matplotlib.org/gallery/images_contours_and_fields/image_annotated_heatmap.html
-        generationList = ["Gen {}".format(i) for i in range(numberOfGenerations+1)]
-        populationList = ["Parent {}".format(i) for i in range(numberOfParents)]
-        
-        fig, ax = plt.subplots()
-        im = ax.imshow(parameter, cmap=plt.get_cmap('YlOrBr'))
-        
-        # show ticks
-        ax.set_xticks(np.arange(len(populationList)))
-        ax.set_yticks(np.arange(len(generationList)))
-        
-        # show labels
-        ax.set_xticklabels(populationList)
-        ax.set_yticklabels(generationList)
-        
-        # set ticks at 45 degrees and rotate around anchor
-        plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
-                rotation_mode="anchor")
-        
-        
-        # insert the value of the parameter in each cell
-        for i in range(len(generationList)):
-            for j in range(len(populationList)):
-                text = ax.text(j, i, parameter[i, j],
-                            ha="center", va="center", color="k")
-        
-        ax.set_title("Change in the value of " + parameterName)
-        fig.tight_layout()
-        plt.show()
-
-
-if __name__ == "__main__":
-    params = [
-        {
-            'learning_rate': 0.001,
-            'min': 0.0001,
-            'max': 0.1,
-            'low': 0.000001,
-            'high': 1,
-            'type': np.float,
-        },
-        {
-            'input_dim': 30,
-            'min': 30,
-            'max': 64,
-            'low': 20,
-            'high': 64,
-            'type': np.uint8
-        }
-    ]
-    g = Genetic([], [], [], [], params, None)
-    print(g.init_population())
+    
